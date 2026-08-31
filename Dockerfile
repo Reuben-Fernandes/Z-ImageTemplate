@@ -1,10 +1,11 @@
 # ── Base ─────────────────────────────────────────────────────────
-FROM ubuntu:24.04
+# CUDA devel image (not plain ubuntu) — needed for nvcc to compile
+# SageAttention2 from source.
+FROM nvidia/cuda:12.8.1-cudnn-devel-ubuntu24.04
 ENV DEBIAN_FRONTEND=noninteractive
 ENV HF_XET_HIGH_PERFORMANCE=1
 ENV PYTHONUNBUFFERED=1
 WORKDIR /workspace
-
 # ── System Dependencies ──────────────────────────────────────────
 RUN apt-get update -qq && \
     apt-get install -y --no-install-recommends \
@@ -17,23 +18,24 @@ RUN apt-get update -qq && \
         curl \
         libgl1 \
         libglib2.0-0 \
+        build-essential \
+        ninja-build \
     && rm -rf /var/lib/apt/lists/* \
     && rm -f /usr/lib/python3.12/EXTERNALLY-MANAGED
-
-# ── PyTorch (pinned to cu128) ─────────────────────────────────────
+# ── PyTorch (cu118 — widest driver compatibility for a loose
+#    RunPod "min CUDA 12.0" filter; SageAttention2 only needs >=12.0
+#    on Ampere regardless of which torch build is used) ────────────
 RUN pip install torch torchvision torchaudio \
-    --index-url https://download.pytorch.org/whl/cu128 \
+    --index-url https://download.pytorch.org/whl/cu118 \
     --quiet
-
 # ── ComfyUI ──────────────────────────────────────────────────────
 RUN git clone https://github.com/comfyanonymous/ComfyUI.git /workspace/ComfyUI
 RUN pip install -r /workspace/ComfyUI/requirements.txt --quiet
-
 # ── Python Dependencies ──────────────────────────────────────────
 RUN pip install \
         "huggingface_hub[cli]" \
+        hf_transfer \
         --quiet
-
 # ── Custom Nodes ─────────────────────────────────────────────────
 RUN cd /workspace/ComfyUI/custom_nodes && \
     git clone https://github.com/ltdrdata/ComfyUI-Manager && \
@@ -44,11 +46,15 @@ RUN for dir in /workspace/ComfyUI/custom_nodes/*/; do \
             pip install -r "$dir/requirements.txt" --quiet || true; \
         fi \
     done
-
+# ── SageAttention2 (Ampere / RTX 3090) ────────────────────────────
+# Installed directly from PyPI rather than compiled from source —
+# the source build was failing to register under the exact python3
+# environment ComfyUI runs under, causing "--use-sage-attention"
+# to fail at startup even though the build itself succeeded.
+RUN pip install sageattention --quiet
 # ── Ports ────────────────────────────────────────────────────────
 EXPOSE 8188
 EXPOSE 8888
-
 # ── Start Script ─────────────────────────────────────────────────
 COPY start.sh /start.sh
 RUN chmod +x /start.sh
