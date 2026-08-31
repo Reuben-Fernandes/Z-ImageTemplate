@@ -2,6 +2,7 @@
 #
 # Z Image Turbo Pod start script
 #
+
 set -e
 
 COMFYUI_DIR=/workspace/ComfyUI
@@ -23,6 +24,7 @@ export HF_XET_HIGH_PERFORMANCE=1
 
 # ── Download Models ──────────────────────────────────────────────
 echo "  → Checking models..."
+
 python3 << PYEOF
 import os, shutil
 from huggingface_hub import hf_hub_download
@@ -33,15 +35,15 @@ base = "$COMFYUI_DIR/models"
 
 models = [
     ("diffusion_models/z_image_turbo_bf16.safetensors", "diffusion_models"),
-    ("text_encoders/qwen_3_4b.safetensors",             "text_encoders"),
-    ("vae/ae.safetensors",                              "vae"),
+    ("text_encoders/qwen_3_4b.safetensors", "text_encoders"),
+    ("vae/ae.safetensors", "vae"),
 ]
 
 for filename, dest_folder in models:
     save_name = filename.split("/")[-1]
     dest = os.path.join(base, dest_folder, save_name)
     if os.path.exists(dest):
-        print(f"  ⏭  Already exists: {save_name}")
+        print(f"  ⏭ Already exists: {save_name}")
         continue
     os.makedirs(os.path.join(base, dest_folder), exist_ok=True)
     print(f"  → Downloading: {save_name}")
@@ -70,4 +72,5 @@ echo "  → Launching ComfyUI on port 8188..."
 echo ""
 exec python3 "$COMFYUI_DIR/main.py" \
     --listen 0.0.0.0 \
-    --port 8188
+    --port 8188 \
+    --enable-cors-header
